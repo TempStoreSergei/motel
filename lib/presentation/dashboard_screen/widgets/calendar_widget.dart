@@ -1,6 +1,8 @@
 // lib/presentation/dashboard_screen/widgets/calendar_widget.dart
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'glassmorphic_container.dart';
+import 'adaptive_text.dart';
 
 class CalendarWidget extends StatelessWidget {
   const CalendarWidget({super.key});
@@ -10,12 +12,9 @@ class CalendarWidget extends StatelessWidget {
     final now = DateTime.now();
     final monthName = DateFormat('MMMM', 'ru_RU').format(now).toUpperCase();
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: _getWidgetDecoration(context),
+    return GlassmorphicContainer(
       child: Row(
         children: [
-          // Левая часть: Дата
           Expanded(
             flex: 2,
             child: Column(
@@ -24,31 +23,27 @@ class CalendarWidget extends StatelessWidget {
               children: [
                 Text(
                   DateFormat('EEEE', 'ru_RU').format(now).toUpperCase(),
-                  style: const TextStyle(color: Colors.white70, fontSize: 16),
+                  style: TextStyle(color: Colors.white70, fontSize: scaleText(context, 16)),
                 ),
                 Text(
                   now.day.toString(),
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: Colors.white,
-                      fontSize: 72,
+                      fontSize: scaleText(context, 72),
                       fontWeight: FontWeight.w200),
                 ),
-                const Text(
-                  'Нет событий',
-                  style: TextStyle(color: Colors.white, fontSize: 18),
-                ),
+                Text('Нет событий', style: TextStyle(color: Colors.white, fontSize: scaleText(context, 18))),
               ],
             ),
           ),
-          // Правая часть: Сетка календаря
+          const VerticalDivider(color: Colors.white24),
           Expanded(
             flex: 3,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(monthName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                Text(monthName, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: scaleText(context, 14))),
                 const SizedBox(height: 8),
-                _buildCalendarGrid(now),
+                Expanded(child: _buildCalendarGrid(context, now)),
               ],
             ),
           ),
@@ -57,21 +52,21 @@ class CalendarWidget extends StatelessWidget {
     );
   }
 
-  Widget _buildCalendarGrid(DateTime now) {
+  Widget _buildCalendarGrid(BuildContext context, DateTime now) {
     final daysInMonth = DateUtils.getDaysInMonth(now.year, now.month);
     final firstDayOfMonth = DateTime(now.year, now.month, 1);
-    // 1=Пн, 7=Вс. Нам нужен отступ для сетки.
     final dayOfWeekOffset = firstDayOfMonth.weekday - 1;
 
     return GridView.builder(
+      // <<< ИСПРАВЛЕНИЕ: Возвращаем обязательный параметр gridDelegate
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 7, // 7 дней в неделе
+        childAspectRatio: 1.2, // Соотношение сторон ячейки
+        mainAxisSpacing: 2,
+        crossAxisSpacing: 2,
+      ),
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 7,
-        childAspectRatio: 1.0,
-        mainAxisSpacing: 4,
-        crossAxisSpacing: 4,
-      ),
       itemCount: daysInMonth + dayOfWeekOffset,
       itemBuilder: (context, index) {
         if (index < dayOfWeekOffset) {
@@ -79,29 +74,18 @@ class CalendarWidget extends StatelessWidget {
         }
         final day = index - dayOfWeekOffset + 1;
         final isToday = day == now.day;
-
         return Center(
           child: CircleAvatar(
-            radius: 14,
+            radius: scaleText(context, 14),
             backgroundColor: isToday ? Colors.red : Colors.transparent,
-            child: Text(
-              '$day',
-              style: TextStyle(
-                color: isToday ? Colors.white : Colors.white70,
-                fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
+            child: Text('$day',
+                style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: scaleText(context, 14),
+                    fontWeight: isToday ? FontWeight.bold : FontWeight.normal)),
           ),
         );
       },
     );
   }
-}
-
-// Общая декорация для всех виджетов, чтобы стиль был единым
-BoxDecoration _getWidgetDecoration(BuildContext context) {
-  return BoxDecoration(
-    color: Colors.black.withOpacity(0.3),
-    borderRadius: BorderRadius.circular(24),
-  );
 }
