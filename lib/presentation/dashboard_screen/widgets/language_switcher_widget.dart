@@ -1,7 +1,7 @@
 // lib/presentation/dashboard_screen/widgets/language_switcher_widget.dart
 import 'package:flutter/material.dart';
-import 'glassmorphic_container.dart';
-import 'adaptive_text.dart';
+import 'package:motel/presentation/helpers/glassmorphic_container.dart';
+import 'package:motel/presentation/helpers/adaptive_text.dart';
 
 class LanguageSwitcherWidget extends StatelessWidget {
   const LanguageSwitcherWidget({super.key});

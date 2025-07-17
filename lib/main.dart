@@ -2,7 +2,8 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'presentation/dashboard_screen/booking_dashboard_screen.dart';
+// <<< ИЗМЕНЕНИЕ: Импортируем новый экран блокировки
+import 'presentation/lock_screen/lock_screen.dart';
 
 void main() {
   initializeDateFormatting('ru_RU', null).then((_) {
@@ -24,9 +25,10 @@ class MyApp extends StatelessWidget {
       supportedLocales: [Locale('ru', 'RU')],
       debugShowCheckedModeBanner: false,
       theme: CupertinoThemeData(
-        brightness: Brightness.dark, // <<< ВАЖНО: Темная тема!
+        brightness: Brightness.dark,
       ),
-      home: BookingDashboardScreen(),
+      // <<< ИЗМЕНЕНИЕ: Стартуем с экрана блокировки
+      home: LockScreen(),
     );
   }
 }

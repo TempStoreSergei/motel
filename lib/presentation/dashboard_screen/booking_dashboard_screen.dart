@@ -1,98 +1,118 @@
-// lib/presentation/dashboard_screen/booking_dashboard_screen.dart
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'widgets/booking_details_widget.dart';
-import 'widgets/calendar_widget.dart';
-import 'widgets/fines_widget.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+import 'package:motel/models/booking_data.dart';
+import 'package:motel/presentation/payment_screen.dart';
+import 'package:motel/presentation/helpers/glassmorphic_container.dart';
+import 'widgets/user_profile_header.dart';
 import 'widgets/language_switcher_widget.dart';
-import 'widgets/payment_button_widget.dart';
-import 'widgets/quick_actions_widget.dart';
-import 'widgets/user_profile_widget.dart';
-import 'widgets/weather_widget.dart';
+import 'widgets/accommodation_tile.dart';
+import 'widgets/cleaning_tile.dart';
+import 'widgets/linen_change_tile.dart';
+import 'widgets/penalty_tile.dart';
+import 'widgets/parking_tile.dart';
+import 'widgets/laundry_tile.dart';
 
 class BookingDashboardScreen extends StatelessWidget {
-  const BookingDashboardScreen({super.key});
+  final BookingData bookingData;
+  const BookingDashboardScreen({super.key, required this.bookingData});
+
+  void _onServiceSelected(BuildContext context, String serviceName) {
+    bookingData.selectedService = serviceName;
+    Navigator.of(context).push(CupertinoPageRoute(
+      builder: (_) => PaymentScreen(bookingData: bookingData),
+    ));
+  }
 
   @override
   Widget build(BuildContext context) {
-    final screenSize = MediaQuery.of(context).size;
-    final screenWidth = screenSize.width;
-    final screenHeight = screenSize.height;
+    final serviceNames = [
+      'Проживание', 'Платная уборка комнаты', 'Внеплановая замена белья',
+      'Штраф за нарушение правил проживания', 'Стоянка автотранспорта', 'Стирка'
+    ];
 
-    final double horizontalPadding = screenWidth * 0.03;
-    final double verticalPadding = screenHeight * 0.05;
+    final serviceTiles = [
+      AccommodationTile(onTap: () => _onServiceSelected(context, serviceNames[0])),
+      CleaningTile(onTap: () => _onServiceSelected(context, serviceNames[1])),
+      LinenChangeTile(onTap: () => _onServiceSelected(context, serviceNames[2])),
+      PenaltyTile(onTap: () => _onServiceSelected(context, serviceNames[3])),
+      ParkingTile(onTap: () => _onServiceSelected(context, serviceNames[4])),
+      LaundryTile(onTap: () => _onServiceSelected(context, serviceNames[5])),
+    ];
 
-    return Scaffold(
-      body: Stack(
+    // Создаем наш единый блок контента с "идеальными" пропорциями.
+    final contentBlock = Container(
+      // Отступы теперь ВНУТРИ блока, чтобы создать внутреннее пространство,
+      // а не пустоту вокруг него.
+      padding: const EdgeInsets.all(25),
+      width: 1020, // "Идеальная" ширина, определяющая пропорции
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            decoration: const BoxDecoration(
-              image: DecorationImage(
-                image: AssetImage('assets/images/hotel_lobby.jpg'),
-                fit: BoxFit.cover,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              GlassmorphicContainer(
+                child: CupertinoButton(
+                  padding: const EdgeInsets.all(10),
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Icon(CupertinoIcons.back, color: Colors.white, size: 35),
+                ),
               ),
-            ),
+              UserProfileHeader(bookingData: bookingData),
+            ],
           ),
-
-          // --- ВЕРХНЯЯ ПАНЕЛЬ ---
-          Positioned(
-            top: verticalPadding,
-            left: horizontalPadding,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: screenWidth * 0.42,
-                maxHeight: screenHeight * 0.38,
-              ),
-              child: const CalendarWidget(),
-            ),
-          ),
-          Positioned(
-            top: verticalPadding,
-            right: horizontalPadding,
-            child: const WeatherWidget(),
-          ),
-
-          // --- ЛЕВАЯ КОЛОНКА ---
-          Positioned(
-            top: screenHeight * 0.48,
-            left: horizontalPadding,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const UserProfileWidget(),
-                SizedBox(height: screenHeight * 0.02),
-                const BookingDetailsWidget(),
+          const SizedBox(height: 25),
+          GridView.custom(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: SliverQuiltedGridDelegate(
+              crossAxisCount: 4,
+              mainAxisSpacing: 25,
+              crossAxisSpacing: 25,
+              pattern: const [
+                QuiltedGridTile(2, 2),
+                QuiltedGridTile(1, 2),
+                QuiltedGridTile(1, 2),
+                QuiltedGridTile(1, 1),
+                QuiltedGridTile(1, 1),
+                QuiltedGridTile(1, 2),
               ],
             ),
+            childrenDelegate: SliverChildListDelegate(serviceTiles),
           ),
-
-          // <<< ИЗМЕНЕНИЕ: Размещаем виджет штрафов СПРАВА, а не в центре
-          Positioned(
-            top: screenHeight * 0.55, // Вертикально примерно по центру
-            right: horizontalPadding,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: screenWidth * 0.4),
-              child: const FinesWidget(),
-            ),
-          ),
-
-          // --- НИЖНЯЯ ПАНЕЛЬ УПРАВЛЕНИЯ ---
-          Positioned(
-            bottom: verticalPadding,
-            left: horizontalPadding,
-            child: const LanguageSwitcherWidget(),
-          ),
-          Positioned(
-            bottom: verticalPadding,
-            left: 0,
-            right: 0,
-            child: const Center(child: QuickActionsWidget()),
-          ),
-          Positioned(
-            bottom: verticalPadding,
-            right: horizontalPadding,
-            child: const PaymentButtonWidget(),
+          const SizedBox(height: 25),
+          const Row(
+            mainAxisAlignment: MainAxisAlignment.start,
+            children: [
+              LanguageSwitcherWidget(),
+            ],
           ),
         ],
+      ),
+    );
+
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+              image: AssetImage('assets/images/hostel_cozy_room.jpg'),
+              fit: BoxFit.cover),
+        ),
+        child: SafeArea(
+          // SafeArea обеспечивает отступы от системных элементов (челка, нижняя полоса)
+          // Мы НЕ добавляем лишних отступов здесь.
+          child: Center(
+            // FittedBox занимает всё доступное место в SafeArea
+            // и масштабирует contentBlock, чтобы он влез, максимально
+            // используя пространство.
+            child: FittedBox(
+              fit: BoxFit.contain,
+              child: contentBlock,
+            ),
+          ),
+        ),
       ),
     );
   }
