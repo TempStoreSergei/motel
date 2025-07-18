@@ -1,20 +1,35 @@
-// lib/presentation/guest_info/keyboard_notifier.dart
 import 'package:flutter/material.dart';
 
 class KeyboardNotifier extends ChangeNotifier {
-  // <<< ИЗМЕНЕНИЕ: Теперь храним все контроллеры и отслеживаем индекс активного
-  List<TextEditingController> controllers = [];
-  int _activeIndex = -1;
+  List<TextEditingController> _controllers = [];
+  List<FocusNode> _focusNodes = [];
+  int _activeIndex = 0;
+  bool _isShiftEnabled = true;
 
-  TextEditingController? get activeController => _activeIndex != -1 ? controllers[_activeIndex] : null;
+  bool get isShiftEnabled => _isShiftEnabled;
+  TextEditingController? get activeController => _controllers.isNotEmpty ? _controllers[_activeIndex] : null;
 
-  void registerControllers(List<TextEditingController> newControllers) {
-    controllers = newControllers;
+  bool isControllerActive(TextEditingController controller) {
+    if (_controllers.isEmpty) return false;
+    return _controllers[_activeIndex] == controller;
+  }
+
+  void registerFields({
+    required List<TextEditingController> controllers,
+    required List<FocusNode> focusNodes,
+  }) {
+    _controllers = controllers;
+    _focusNodes = focusNodes;
+    if (_controllers.isNotEmpty && _focusNodes.isNotEmpty) {
+      _activeIndex = 0;
+      _focusNodes[_activeIndex].requestFocus();
+    }
   }
 
   void setActiveControllerByIndex(int index) {
-    if (index >= 0 && index < controllers.length) {
+    if (index >= 0 && index < _controllers.length) {
       _activeIndex = index;
+      _focusNodes[index].requestFocus();
       notifyListeners();
     }
   }
@@ -22,21 +37,63 @@ class KeyboardNotifier extends ChangeNotifier {
   void onKeyPressed(String key) {
     if (activeController == null) return;
 
-    if (key == "⌫") {
-      if (activeController!.text.isNotEmpty) {
-        activeController!.text = activeController!.text.substring(0, activeController!.text.length - 1);
-      }
-    } else if (key == "→") { // <<< Логика для Tab
-      _activeIndex = (_activeIndex + 1) % controllers.length;
-      notifyListeners();
-    } else {
-      activeController!.text += key;
+    switch (key) {
+      case 'BACKSPACE':
+        _handleBackspace();
+        break;
+      case 'SHIFT':
+        _toggleShift();
+        break;
+      case 'TAB':
+        _handleTab();
+        break;
+      case 'SPACE':
+        _insertText(' ');
+        break;
+      case 'LANG':
+        print("Language key pressed");
+        break;
+      default:
+        final textToInsert = _isShiftEnabled ? key.toUpperCase() : key.toLowerCase();
+        _insertText(textToInsert);
+        if (_isShiftEnabled) {
+          _isShiftEnabled = false;
+          notifyListeners();
+        }
+        break;
     }
   }
 
-  // <<< Метод для проверки, активно ли данное поле
-  bool isControllerActive(TextEditingController controller) {
-    if (_activeIndex == -1) return false;
-    return controllers[_activeIndex] == controller;
+  void _toggleShift() {
+    _isShiftEnabled = !_isShiftEnabled;
+    notifyListeners();
+  }
+
+  void _handleTab() {
+    final nextIndex = (_activeIndex + 1) % _controllers.length;
+    setActiveControllerByIndex(nextIndex);
+  }
+
+  void _handleBackspace() {
+    final controller = activeController!;
+    final text = controller.text;
+    final selection = controller.selection;
+    if (selection.baseOffset == 0) return;
+    final newText = text.substring(0, selection.baseOffset - 1) + text.substring(selection.baseOffset);
+    controller.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: selection.baseOffset - 1),
+    );
+  }
+
+  void _insertText(String text) {
+    final controller = activeController!;
+    final oldText = controller.text;
+    final selection = controller.selection;
+    final newText = oldText.replaceRange(selection.start, selection.end, text);
+    controller.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: selection.start + text.length),
+    );
   }
 }

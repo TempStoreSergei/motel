@@ -1,9 +1,10 @@
-// lib/presentation/payment_screen.dart
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:motel/models/booking_data.dart';
+import 'package:motel/presentation/cash_payment_screen.dart';
 import 'package:motel/presentation/helpers/adaptive_text.dart';
 import 'package:motel/presentation/helpers/glassmorphic_container.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 class PaymentScreen extends StatefulWidget {
   final BookingData bookingData;
@@ -14,7 +15,6 @@ class PaymentScreen extends StatefulWidget {
 }
 
 class _PaymentScreenState extends State<PaymentScreen> {
-  // Логика для определения цен на услуги
   final Map<String, double> _servicePrices = {
     'Проживание': 1500.0,
     'Платная уборка комнаты': 500.0,
@@ -24,109 +24,197 @@ class _PaymentScreenState extends State<PaymentScreen> {
     'Стирка': 200.0,
   };
 
-  String _selectedPaymentMethod = 'Картой'; // Способ оплаты по умолчанию
+  // Ключ для измерения высоты блока с QR-кодом
+  final GlobalKey _qrBlockKey = GlobalKey();
+  // Переменная для хранения высоты кнопок
+  double _buttonHeight = 150.0; // Высота по умолчанию
+
+  @override
+  void initState() {
+    super.initState();
+    // Этот код выполнится ПОСЛЕ того, как виджеты будут отрисованы
+    WidgetsBinding.instance.addPostFrameCallback((_) => _updateButtonHeight());
+  }
+
+  void _updateButtonHeight() {
+    // Получаем RenderBox (информацию о размере и позиции) блока с QR-кодом
+    final RenderBox? renderBox = _qrBlockKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+
+    final totalHeight = renderBox.size.height;
+    final newButtonHeight = (totalHeight - 25) / 2; // 25 - это высота SizedBox между кнопками
+
+    // Проверяем, что высота изменилась, чтобы избежать бесконечных перерисовок
+    if (newButtonHeight > 0 && _buttonHeight != newButtonHeight) {
+      setState(() {
+        _buttonHeight = newButtonHeight;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Получаем цену для выбранной услуги. Если услуга не найдена, цена будет 0.0
     final double amount = _servicePrices[widget.bookingData.selectedService] ?? 0.0;
-    final screenSize = MediaQuery.of(context).size;
+    final qrData = "Service: ${widget.bookingData.selectedService}\n"
+        "Client: ${widget.bookingData.firstName} ${widget.bookingData.lastName}\n"
+        "Amount: ${amount.toStringAsFixed(2)} RUB";
 
     return Scaffold(
+      backgroundColor: Colors.black,
       body: Container(
         decoration: const BoxDecoration(
           image: DecorationImage(image: AssetImage('assets/images/hostel_cozy_room.jpg'), fit: BoxFit.cover),
         ),
-        child: Stack(
-          children: [
-            // Кнопка "Назад"
-            Positioned(
-              top: screenSize.height * 0.05,
-              left: screenSize.width * 0.05,
-              child: GlassmorphicContainer(
-                child: CupertinoButton(
-                  padding: const EdgeInsets.all(10),
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Icon(CupertinoIcons.back, color: Colors.white, size: 35),
-                ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1200),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 40.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  GlassmorphicContainer(
+                    child: CupertinoButton(
+                      padding: const EdgeInsets.all(10),
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Icon(CupertinoIcons.back, color: Colors.white, size: 35),
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+                  // Внутри вашего build метода, замените Row с карточками на этот IntrinsicHeight:
+
+                  IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch, // Эта строка заставляет детей растянуться
+                      children: [
+                        Expanded(
+                          child: _buildInfoCard(
+                            title: 'Плательщик',
+                            child: Text(
+                              '${widget.bookingData.firstName} ${widget.bookingData.lastName}',
+                              style: TextStyle(color: Colors.white, fontSize: scaleText(context, 20), fontWeight: FontWeight.bold),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 25),
+                        Expanded(
+                          child: _buildInfoCard(
+                            title: 'К оплате',
+                            child: Text(
+                              '${amount.toStringAsFixed(2)} руб. / Услуга: ${widget.bookingData.selectedService}',
+                              style: TextStyle(color: Colors.white, fontSize: scaleText(context, 20), fontWeight: FontWeight.bold),
+                              overflow: TextOverflow.visible, // Используем visible, чтобы текст мог свободно переноситься
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 25),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Левая колонка - QR-код и инструкция
+                      Expanded(
+                        flex: 2,
+                        child: Container(
+                          key: _qrBlockKey, // Привязываем ключ к этому блоку
+                          child: GlassmorphicContainer(
+                            padding: const EdgeInsets.all(25),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text("QR-код (СБП)", style: TextStyle(color: Colors.white, fontSize: scaleText(context, 22), fontWeight: FontWeight.bold)),
+                                const SizedBox(height: 20),
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+                                  child: QrImageView(data: qrData, version: QrVersions.auto, size: 220.0),
+                                ),
+                                const SizedBox(height: 20),
+                                _buildInstructionStep(CupertinoIcons.device_phone_portrait, "1. Откройте приложение вашего банка"),
+                                const SizedBox(height: 12),
+                                _buildInstructionStep(CupertinoIcons.qrcode_viewfinder, "2. Выберите 'Оплата по QR-коду'"),
+                                const SizedBox(height: 12),
+                                _buildInstructionStep(CupertinoIcons.camera, "3. Наведите камеру и оплатите"),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 25),
+                      // Правая колонка - другие способы
+                      Expanded(
+                        flex: 1,
+                        child: Column(
+                          children: [
+                            SizedBox(
+                              height: _buttonHeight, // Используем вычисленную высоту
+                              child: CupertinoButton(
+                                padding: EdgeInsets.zero,
+                                onPressed: () {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Терминал оплаты временно недоступен.')),
+                                  );
+                                },
+                                child: _buildPaymentTile(title: 'Картой', icon: CupertinoIcons.creditcard_fill),
+                              ),
+                            ),
+                            const SizedBox(height: 25),
+                            SizedBox(
+                              height: _buttonHeight, // Используем вычисленную высоту
+                              child: CupertinoButton(
+                                padding: EdgeInsets.zero,
+                                onPressed: () {
+                                  Navigator.of(context).push(CupertinoPageRoute(
+                                    builder: (_) => CashPaymentScreen(bookingData: widget.bookingData),
+                                  ));
+                                },
+                                child: _buildPaymentTile(title: 'Наличными', icon: CupertinoIcons.money_rubl_circle_fill),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
 
-            // Основной контент
-            Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: screenSize.width * 0.5),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // 1. БЛОК: ИНФОРМАЦИЯ О ПОЛЬЗОВАТЕЛЕ
-                    _buildInfoCard(
-                      title: 'Плательщик',
-                      child: Row(
-                        children: [
-                          const Icon(CupertinoIcons.person_fill, color: Colors.white, size: 30),
-                          const SizedBox(width: 15),
-                          Text(
-                            '${widget.bookingData.firstName} ${widget.bookingData.lastName}',
-                            style: TextStyle(color: Colors.white, fontSize: scaleText(context, 20), fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 25),
+  Widget _buildInfoCard({required String title, required Widget child}) {
+    return GlassmorphicContainer(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: scaleText(context, 16))),
+          const SizedBox(height: 10),
+          child,
+        ],
+      ),
+    );
+  }
 
-                    // 2. БЛОК: ДЕТАЛИ УСЛУГИ И СУММА
-                    _buildInfoCard(
-                      title: 'Детали платежа',
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Услуга: ${widget.bookingData.selectedService}',
-                            style: TextStyle(color: Colors.white70, fontSize: scaleText(context, 18)),
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            'Сумма: ${amount.toStringAsFixed(2)} руб.',
-                            style: TextStyle(color: Colors.white, fontSize: scaleText(context, 24), fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 25),
-
-                    // 3. БЛОК: ВЫБОР СПОСОБА ОПЛАТЫ
-                    _buildInfoCard(
-                      title: 'Способ оплаты',
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          _buildPaymentMethodButton('Картой', CupertinoIcons.creditcard_fill),
-                          _buildPaymentMethodButton('Наличными', CupertinoIcons.money_rubl_circle_fill),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 40),
-
-                    // Кнопка "Оплатить"
-                    CupertinoButton(
-                      color: Colors.green,
-                      padding: const EdgeInsets.symmetric(vertical: 20),
-                      onPressed: () {
-                        // Здесь будет логика реальной оплаты
-                        print('Оплата на сумму $amount руб. (${widget.bookingData.selectedService}) способом "$_selectedPaymentMethod"');
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Оплата прошла успешно!')),
-                        );
-                        // Возвращаемся на 2 экрана назад, к самому началу
-                        Navigator.of(context).popUntil((route) => route.isFirst);
-                      },
-                      child: Text('Оплатить', style: TextStyle(fontSize: scaleText(context, 20), fontWeight: FontWeight.bold)),
-                    )
-                  ],
-                ),
-              ),
+  Widget _buildPaymentTile({required String title, required IconData icon}) {
+    return SizedBox.expand(
+      child: GlassmorphicContainer(
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 10),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: Colors.white, size: 40),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white, fontSize: scaleText(context, 16), fontWeight: FontWeight.w600),
             ),
           ],
         ),
@@ -134,56 +222,19 @@ class _PaymentScreenState extends State<PaymentScreen> {
     );
   }
 
-  // Виджет для карточек с информацией
-  Widget _buildInfoCard({required String title, required Widget child}) {
-    return GlassmorphicContainer(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: scaleText(context, 16)),
-          ),
-          const SizedBox(height: 15),
-          child,
-        ],
-      ),
-    );
-  }
-
-  // Виджет для кнопок выбора способа оплаты
-  Widget _buildPaymentMethodButton(String method, IconData icon) {
-    final bool isSelected = _selectedPaymentMethod == method;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          setState(() {
-            _selectedPaymentMethod = method;
-          });
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 15),
-          margin: const EdgeInsets.symmetric(horizontal: 5),
-          decoration: BoxDecoration(
-            color: isSelected ? Colors.white.withOpacity(0.3) : Colors.black.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(15),
-            border: Border.all(
-              color: isSelected ? Colors.white : Colors.transparent,
-              width: 2,
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: Colors.white, size: 24),
-              const SizedBox(width: 10),
-              Text(method, style: TextStyle(color: Colors.white, fontSize: scaleText(context, 16), fontWeight: FontWeight.w600)),
-            ],
+  Widget _buildInstructionStep(IconData icon, String text) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(icon, color: Colors.white70, size: 24),
+        const SizedBox(width: 15),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(color: Colors.white70, fontSize: scaleText(context, 15)),
           ),
         ),
-      ),
+      ],
     );
   }
 }
